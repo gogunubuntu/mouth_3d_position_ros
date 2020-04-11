@@ -21,6 +21,7 @@ import dlib
 import cv2
 import sys
 import rospy
+rospy.init_node('mouth_detector', anonymous=True)
 #from opencv_object_tracking.msg import pixc
 def mouth_aspect_ratio(mouth):
 	# compute the euclidean distances between the two sets of
@@ -53,7 +54,7 @@ MOUTH_AR_THRESH = 0.79
 # the facial landmark predictor
 print("[INFO] loading facial landmark predictor...")
 detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor('/home/hyzn/catkin_ws/src/object_detection_2d/scripts/shape_predictor_68_face_landmarks.dat')
+predictor = dlib.shape_predictor('/home/hyzn/catkin_ws/src/3d_mouth_position/scripts/shape_predictor_68_face_landmarks.dat')
 #predictor = dlib.shape_predictor(args["shape_predictor"])
 
 # grab the indexes of the facial landmarks for the mouth
@@ -73,67 +74,25 @@ time.sleep(1.0)
 
 
 # loop over frames from the video stream
-'''
-while True:
-	# grab the frame from the threaded video file stream, resize
-	# it, and convert it to grayscale
-	# channels)
 
-	frame = imutils.resize(frame, width=640)
-	gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-	# detect faces in the grayscale frame
-	rects = detector(gray, 0)
-
-	# loop over the face detections
-	for rect in rects:
-		# determine the facial landmarks for the face region, then
-		# convert the facial landmark (x, y)-coordinates to a NumPy
-		# array
-		shape = predictor(gray, rect)
-		shape = face_utils.shape_to_np(shape)
-
-		# extract the mouth coordinates, then use the
-		# coordinates to compute the mouth aspect ratio
-		mouth = shape[mStart:mEnd]
-
-		mouthMAR = mouth_aspect_ratio(mouth)
-		mar = mouthMAR
-		# compute the convex hull for the mouth, then
-		# visualize the mouth
-		mouthHull = cv2.convexHull(mouth)
-		
-		cv2.drawContours(frame, [mouthHull], -1, (0, 255, 0), 1)
-		cv2.putText(frame, "MAR: {:.2f}".format(mar), (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
-        # Draw text if mouth is open
-		if mar > MOUTH_AR_THRESH:
-			cv2.putText(frame, "Mouth is Open!", (30,60),
-			cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255),2)
-	# Write the frame into the file 'output.avi'
-	#out.write(frame)
-	# show the frame
-	cv2.imshow("Frame", frame)
-	key = cv2.waitKey(1) & 0xFF
-
-	# if the `q` key was pressed, break from the loop
-	if key == ord("q"):
-		break
-'''
 ##########image converter###########
 class image_converter:
   def __init__(self):
-    self.image_pub = rospy.Publisher("image_topic",Image)
-
+    self.pcl2_matched = PointCloud2() #to match time with image center
     self.bridge = CvBridge()
     self.image_sub = rospy.Subscriber("/camera/color/image_raw",Image,self.callbackImg_raw)
-    #self.pointCloud_sub = rospy.Subscriber("/camera/depth_registered/points", PointCloud2, self.callback_points)
-    self.mouthCenter_pub = rospy.Publisher("mouthCenter",mouthCenter, queue_size = 1)
+    self.pointCloud_sub = rospy.Subscriber("/camera/depth_registered/points", PointCloud2, self.callback_pcl2)
+    self.pointCloud_pub 	= rospy.Publisher("/mouthPos/pointCloud2"	,PointCloud2, queue_size=1) #from sensor_msgs.msg import PointCloud2 as pcl2
+    self.mouthCenter_pub 	= rospy.Publisher("/mouthPos/mouthCenter"	,mouthCenter, queue_size=1) #from opencv_object_tracking.msg import position_publish as mouthCenter
+    self.image_pub 			= rospy.Publisher("/mouthPos/raw_image"		,Image		, queue_size=1)
+  def callback_pcl2(self, data) : 
+	  self.pcl2_matched = data
   def callbackImg_raw(self,data):
     try:
 	frame = self.bridge.imgmsg_to_cv2(data, "bgr8")
 	frame = imutils.resize(frame, width=640)
 	gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+	msg_pcl2 = self.pcl2_matched
 
 	# detect faces in the grayscale frame
 	rects = detector(gray, 0)
@@ -156,12 +115,16 @@ class image_converter:
 		# visualize the mouth
 		mouthHull = cv2.convexHull(mouth)
 		msg_mouth = mouthCenter()
+
 		px = (shape[67, 0] + shape[63, 0]) / 2
 		py = (shape[67, 1] + shape[63, 1]) / 2
+		
 		msg_mouth.center_pixel_x = px
 		msg_mouth.center_pixel_y = py
 		msg_mouth.counter = 1
+		
 		mouth_center = (px, py)
+		
 		cv2.putText(frame, "MAR: {:.2f}".format(mar), mouth_center, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 		cv2.drawContours(frame, [mouthHull], -1, (0, 255, 0), 1)
 		cv2.putText(frame, "MAR: {:.2f}".format(mar), (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -173,7 +136,7 @@ class image_converter:
 	# Write the frame into the file 'output.avi'
 	#out.write(frame)
 	# show the frame
-	cv2.imshow("Frame", frame)
+	#cv2.imshow("Frame", frame)
 	key = cv2.waitKey(1) & 0xFF
 
 	# if the `q` key was pressed, break from the loop
@@ -190,16 +153,16 @@ class image_converter:
 
     try:
       self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+      self.pointCloud_pub.publish(msg_pcl2)
     except CvBridgeError as e:
       print(e)
 
-#  def callback_points(self,data) : 
 #	rospy.loginfo("pcl2")
 
 ###################################
 def main(args):
   ic = image_converter()
-  rospy.init_node('mouth_detector', anonymous=True)
+  
   try:
     rospy.spin()
   except KeyboardInterrupt:
