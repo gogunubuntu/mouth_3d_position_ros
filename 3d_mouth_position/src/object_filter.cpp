@@ -260,11 +260,11 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
     image_transport::ImageTransport it(nh);
     //image_transport::Subscriber sub = it.subscribe("/camera/color/image_raw",1, imageCallback);
-    image_transport::Subscriber sub = it.subscribe("image_topic",1, imageCallback);
+    image_transport::Subscriber sub = it.subscribe("/mouthPos/raw_image",1, imageCallback);
     ros::Subscriber dep;
     ros::Subscriber pos;
-    dep = nh.subscribe ("/camera/depth_registered/points", 1, depthcallback);
-    pos = nh.subscribe ("mouthCenter", 1, centercallback); 
+    dep = nh.subscribe ("/mouthPos/pointCloud2", 1, depthcallback );
+    pos = nh.subscribe ("/mouthPos/mouthCenter"          , 1, centercallback); 
     //Publish new topic.
     ros::Publisher pub = nh.advertise<opencv_object_tracking::position_publish>("position_object", 1);
     //Set the loop period with 0.1 second.
