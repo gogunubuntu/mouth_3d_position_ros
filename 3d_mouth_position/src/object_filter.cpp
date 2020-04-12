@@ -11,9 +11,10 @@ Any suggestion or advice, pls send via email: vanhuong.robotics@gmail.com
 #include "std_msgs/String.h"
 #include "std_msgs/Int32.h"
 #include<sstream>
+#include <visualization_msgs/Marker.h>
 
 // Add new topic
-#include "geometry_msgs/Point.h"
+//#include "geometry_msgs/Point.h"
 #include <iostream>
 #include <vector>
 // Create new for circle drawing
@@ -233,10 +234,12 @@ void getXYZ(int x, int y)
     ::y_position = int(Y*1000);
     ::z_position = int(Z*1000);
 
-    printf("Position in X coordinate X = %.4f\n", X);
+    ::flag = true; 
+
+/*    printf("Position in X coordinate X = %.4f\n", X);
     printf("Position in Y coordinate Y = %.4f\n", Y);
     printf("Position in Z coordinate Z = %.4f\n", Z);
-
+*/
     //return 0;
 }
 
@@ -264,21 +267,40 @@ int main(int argc, char** argv)
     ros::Subscriber dep;
     ros::Subscriber pos;
     dep = nh.subscribe ("/mouthPos/pointCloud2", 1, depthcallback );
-    pos = nh.subscribe ("/mouthPos/mouthCenter"          , 1, centercallback); 
+    pos = nh.subscribe ("/mouthPos/mouthCenter", 1, centercallback); 
     //Publish new topic.
-    ros::Publisher pub = nh.advertise<opencv_object_tracking::position_publish>("position_object", 1);
+    ros::Publisher pub = nh.advertise<opencv_object_tracking::position_publish>("/image_converter/position_object", 1);
+    //ros::Publisher pos3d = nh.advertise<geometry_msgs::Point>("/image_converter/pos", 1);
+    
+    ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+    
     //Set the loop period with 0.1 second.
     ros::Rate loop_rate(10);
 
     opencv_object_tracking::position_publish msg;
     msg.counter = 0;
-
+    
     //int count = 0;
     while ((ros::ok()))
       {
 
        //if ((posX != 0) && (posY != 0) && (flag == true))
        //int count = 0;
+       visualization_msgs::Marker sphere; 
+       sphere.header.frame_id = "/camera_link"; 
+       sphere.header.stamp = ros::Time::now();
+       sphere.ns = "points_and_lines";
+       sphere.action =visualization_msgs::Marker::ADD;
+       sphere.pose.orientation.w = 1.0;
+       sphere.id = 0; 
+       sphere.scale.x = 0.03;
+       sphere.scale.y = 0.03;
+       sphere.scale.z = 0.03;
+       sphere.type = visualization_msgs::Marker::POINTS;
+       sphere.color.g = 1.0f;
+       sphere.color.a = 1.0;
+       
+       if(!flag) printf("\n\nfalse\n\n"); 
        if ((flag == true))
        {
        int posX_1, posY_1;
@@ -294,12 +316,15 @@ int main(int argc, char** argv)
        msg.counter = 1;
 
        geometry_msgs::Point Position_XYZ;
-       Position_XYZ.x = X_111;
-       Position_XYZ.y = Y_111;
-       Position_XYZ.z = Z_111;
+       Position_XYZ.x = Z_111;
+       Position_XYZ.y = -1*X_111;
+       Position_XYZ.z = -1*Y_111;
        msg.Position_XYZ.push_back(Position_XYZ);
+       sphere.points.push_back(Position_XYZ); 
 
        pub.publish(msg);
+       marker_pub.publish(sphere); 
+       //pos3d.publish(Position_XYZ);
        loop_rate.sleep();
        //++count;
        }
@@ -321,6 +346,7 @@ int main(int argc, char** argv)
         pub.publish(msg);
         loop_rate.sleep();
        }
+       ::flag = false; 
 
       ros::spinOnce();
       }
@@ -328,5 +354,4 @@ int main(int argc, char** argv)
 
     return 0;
 }
-
 
