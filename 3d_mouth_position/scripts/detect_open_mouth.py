@@ -115,17 +115,19 @@ class image_converter:
 		# visualize the mouth
 		mouthHull = cv2.convexHull(mouth)
 		msg_mouth = mouthCenter()
-
-		px = (shape[67, 0] + shape[63, 0]) / 2
-		py = (shape[67, 1] + shape[63, 1]) / 2
 		
-		msg_mouth.center_pixel_x = px
-		msg_mouth.center_pixel_y = py
+
+		
+		msg_mouth.upper_pixel_x = shape[67, 0]
+		msg_mouth.upper_pixel_y = shape[67, 1]
+		msg_mouth.lower_pixel_x = shape[63, 0]
+		msg_mouth.lower_pixel_y = shape[63, 1]
+		
 		msg_mouth.counter = 1
 		
-		mouth_center = (px, py)
+		#mouth_center = (px, py)
 		
-		cv2.putText(frame, "MAR: {:.2f}".format(mar), mouth_center, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+		cv2.putText(frame, "MAR: {:.2f}".format(mar), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 		cv2.drawContours(frame, [mouthHull], -1, (0, 255, 0), 1)
 		cv2.putText(frame, "MAR: {:.2f}".format(mar), (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 		self.mouthCenter_pub.publish(msg_mouth)
