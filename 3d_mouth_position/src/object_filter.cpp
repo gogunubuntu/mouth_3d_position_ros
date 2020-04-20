@@ -10,9 +10,9 @@ Any suggestion or advice, pls send via email: vanhuong.robotics@gmail.com
 #include <geometry_msgs/Point.h>
 #include "std_msgs/String.h"
 #include "std_msgs/Int32.h"
-#include<sstream>
+#include <sstream>
 #include <visualization_msgs/Marker.h>
-
+#include <cmath>
 // Add new topic
 //#include "geometry_msgs/Point.h"
 #include <iostream>
@@ -48,6 +48,8 @@ const int FRAME_HEIGHT = 480;
 const int MAX_NUM_OBJECTS = 50;
 const int MIN_OBJECT_AREA = 20 * 20;
 const int MAX_OBJECT_AREA = FRAME_HEIGHT * FRAME_WIDTH / 1.5;
+
+const int maximum_object_xyz = 10000000; 
 
 static const std::string OPENCV_WINDOW = "Image Window";
 static const std::string windowName1 = "HSV image";
@@ -207,22 +209,84 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 
 }
 
-void getXYZ(int x, int y)
+void getXYZ(int upperx, int uppery, int lowerx, int lowery)
 {
-    int arrayPosition = y*my_pcl.row_step + x*my_pcl.point_step;
-    int arrayPosX = arrayPosition + my_pcl.fields[0].offset; // X has an offset of 0
-    int arrayPosY = arrayPosition + my_pcl.fields[1].offset; // Y has an offset of 4
-    int arrayPosZ = arrayPosition + my_pcl.fields[2].offset; // Z has an offset of 8
+    int upper_arrayPosition = uppery*my_pcl.row_step + upperx*my_pcl.point_step;
+    int lower_arrayPosition = lowery*my_pcl.row_step + lowerx*my_pcl.point_step;
+    
 
-    float X = 0.0;
-    float Y = 0.0;
-    float Z = 0.0;
+    int upper_arrayPosX = upper_arrayPosition + my_pcl.fields[0].offset; // X has an offset of 0
+    int upper_arrayPosY = upper_arrayPosition + my_pcl.fields[1].offset; // Y has an offset of 4
+    int upper_arrayPosZ = upper_arrayPosition + my_pcl.fields[2].offset; // Z has an offset of 8
+
+    int lower_arrayPosX = lower_arrayPosition + my_pcl.fields[0].offset; // X has an offset of 0
+    int lower_arrayPosY = lower_arrayPosition + my_pcl.fields[1].offset; // Y has an offset of 4
+    int lower_arrayPosZ = lower_arrayPosition + my_pcl.fields[2].offset; // Z has an offset of 8
+
+    //int arrayPosX = (upper_arrayPosX + lower_arrayPosX) / 2;
+    //int arrayPosY = (upper_arrayPosY + lower_arrayPosY) / 2;
+    //int arrayPosZ = (upper_arrayPosZ + lower_arrayPosZ) / 2;
+    
+    float upper_X = 0.0;
+    float upper_Y = 0.0;
+    float upper_Z = 0.0;
+
+    float lower_X = 0.0;
+    float lower_Y = 0.0;
+    float lower_Z = 0.0;
+
+    float X = 0.0; 
+    float Y = 0.0; 
+    float Z = 0.0; 
+
 
     geometry_msgs::Point p;
 
-    memcpy(&X, &my_pcl.data[arrayPosX], sizeof(float));
-    memcpy(&Y, &my_pcl.data[arrayPosY], sizeof(float));
-    memcpy(&Z, &my_pcl.data[arrayPosZ], sizeof(float));
+    
+
+    memcpy(&upper_X, &my_pcl.data[upper_arrayPosX], sizeof(float));
+    memcpy(&upper_Y, &my_pcl.data[upper_arrayPosY], sizeof(float));
+    memcpy(&upper_Z, &my_pcl.data[upper_arrayPosZ], sizeof(float));
+
+    memcpy(&lower_X, &my_pcl.data[lower_arrayPosX], sizeof(float));
+    memcpy(&lower_Y, &my_pcl.data[lower_arrayPosY], sizeof(float));
+    memcpy(&lower_Z, &my_pcl.data[lower_arrayPosZ], sizeof(float));
+    
+    bool exitflag = false; 
+
+    if(std::isnan(upper_X)||std::isnan(upper_Y)||std::isnan(upper_Z)||std::isnan(lower_X)||std::isnan(lower_Y)||std::isnan(lower_Z)) {
+        std::cout << "nan\n"; 
+        exitflag = true;
+        
+    } 
+    if(abs(upper_X) > maximum_object_xyz || abs(upper_Y) > maximum_object_xyz || abs(upper_Z) > maximum_object_xyz 
+     ||abs(lower_X) > maximum_object_xyz || abs(lower_Y) > maximum_object_xyz || abs(lower_Z) > maximum_object_xyz) {
+        std::cout << "too big \n"; 
+        exitflag = true;
+        
+     } 
+    //if(abs(upper_X)<1 || abs(upper_Y)<1 || abs(upper_Z)<1  || abs(lower_X)<1 || abs(lower_Y)<1 || abs(lower_Z)<1){
+    //    std::cout << "too small\n"; 
+    //    exitflag = true;
+    //}  
+    //if(!exitflag){
+    //    cout << upper_X << endl;
+    //    cout << upper_Y << endl;
+    //    cout << upper_Z << endl;
+    //    cout << lower_X << endl;
+    //    cout << lower_Y << endl;
+    //    cout << lower_Z << endl;
+//
+    //}
+    if(exitflag) return;
+    
+    
+
+    X = (lower_X + upper_X) / 2;
+    Y = (lower_Y + upper_Y) / 2;
+    Z = (lower_Z + upper_Z) / 2;
+
+    
 
     p.x = X;
     p.y = Y;
@@ -250,9 +314,11 @@ void depthcallback (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     
 }
 void centercallback(const opencv_object_tracking::position_publish::ConstPtr& center){
-    posX = center->center_pixel_x; 
-    posY = center->center_pixel_y;
-    getXYZ(posX , posY);
+    int upperX = center->upper_pixel_x; 
+    int upperY = center->upper_pixel_y;
+    int lowerX = center->lower_pixel_x; 
+    int lowerY = center->lower_pixel_y; 
+    getXYZ(upperX , upperY, lowerX, lowerY);
 }
 
 int main(int argc, char** argv)
@@ -287,7 +353,7 @@ int main(int argc, char** argv)
        //if ((posX != 0) && (posY != 0) && (flag == true))
        //int count = 0;
        visualization_msgs::Marker sphere; 
-       sphere.header.frame_id = "/camera_link"; 
+       sphere.header.frame_id = "/camera_color_optical_frame"; 
        sphere.header.stamp = ros::Time::now();
        sphere.ns = "points_and_lines";
        sphere.action =visualization_msgs::Marker::ADD;
@@ -311,14 +377,14 @@ int main(int argc, char** argv)
        posX_1 = posX;
        posY_1 = posY;
        msg.Position_XYZ.clear();
-       msg.center_pixel_x = posX;
-       msg.center_pixel_y = posY;
+       //msg.center_pixel_x = posX;
+       //msg.center_pixel_y = posY;
        msg.counter = 1;
 
        geometry_msgs::Point Position_XYZ;
-       Position_XYZ.x = Z_111;
-       Position_XYZ.y = -1*X_111;
-       Position_XYZ.z = -1*Y_111;
+       Position_XYZ.x = X_111;
+       Position_XYZ.y = Y_111;
+       Position_XYZ.z = Z_111;
        msg.Position_XYZ.push_back(Position_XYZ);
        sphere.points.push_back(Position_XYZ); 
 
@@ -333,8 +399,8 @@ int main(int argc, char** argv)
        {
         //count = 0;
         msg.Position_XYZ.clear();
-        msg.center_pixel_x = 0;
-        msg.center_pixel_y = 0;
+        //msg.center_pixel_x = 0;
+        //msg.center_pixel_y = 0;
         msg.counter = 0;
 
         geometry_msgs::Point Position_XYZ;
